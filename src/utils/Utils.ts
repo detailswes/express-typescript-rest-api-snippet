@@ -1,45 +1,27 @@
-import { rejects } from "assert";
+import { randomInt } from "crypto";
 import * as Bcrypt from "bcryptjs";
-import { resolve } from "dns";
+import { UnauthorizedError } from "../errors/AppError";
 
 export class Utils {
-  public MAX_TOKEN_TIME = 600000;
+  static readonly MAX_TOKEN_TIME_MS = 10 * 60 * 1000;
 
-  static generateVerificationToken(size: number = 5) {
-    let digits = "0123456789";
-    let otp = "";
-    for (let i = 0; i < size; i++) {
-      otp += digits[Math.floor(Math.random() * 10)];
-    }
-    return parseInt(otp);
+  static generateVerificationToken(digits = 6): number {
+    return randomInt(10 ** (digits - 1), 10 ** digits);
   }
 
-  static async encryptPassword(password: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      Bcrypt.hash(password, 10, (err, hash) => {
-        if (err) {
-          reject(err);
-        }
-        resolve(hash);
-      });
-    });
+  static async encryptPassword(password: string): Promise<string> {
+    return Bcrypt.hash(password, 12);
   }
 
   static async comparePassword(password: {
     plainPassword: string;
     encryptedPassword: string;
-  }): Promise<any> {
+  }): Promise<boolean> {
     const { plainPassword, encryptedPassword } = password;
-    return new Promise((resolve, reject) => {
-      Bcrypt.compare(plainPassword, encryptedPassword, (err, isSame) => {
-        if (err) {
-          reject(err);
-        } else if (!isSame) {
-          reject(new Error("User and Password Does not Match"));
-        } else {
-          resolve(true);
-        }
-      });
-    });
+    const isSame = await Bcrypt.compare(plainPassword, encryptedPassword);
+    if (!isSame) {
+      throw new UnauthorizedError("User and password do not match");
+    }
+    return true;
   }
 }

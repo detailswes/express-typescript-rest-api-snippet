@@ -1,24 +1,40 @@
-import * as mongoose from "mongoose";
+import mongoose from "mongoose";
 import Comment from "./Comment";
 import { IPost } from "../interfaces/PostInterface";
 
-const postSchema = new mongoose.Schema({
-  user_id: { type: mongoose.Types.ObjectId, required: true },
-  created_at: { type: Date, required: true },
-  updated_at: { type: Date, required: true },
-  content: { type: String, required: true },
-  comments: [{ type: mongoose.Types.ObjectId, ref: "comments" }],
-});
+const postSchema = new mongoose.Schema(
+  {
+    user_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      ref: "users",
+    },
+    content: { type: String, required: true },
+    comments: [{ type: mongoose.Schema.Types.ObjectId, ref: "comments" }],
+  },
+  {
+    timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
+  }
+);
 
-postSchema.virtual("commentCount").get(function () {
+postSchema.index({ user_id: 1 });
+
+postSchema.virtual("commentCount").get(function (this: IPost) {
   return this.comments.length;
 });
 
-postSchema.post("remove", async (doc) => {
-  for (let id of (doc as any).comments) {
-    await Comment.findByIdAndRemove(id);
+postSchema.set("toJSON", { virtuals: true });
+postSchema.set("toObject", { virtuals: true });
+
+postSchema.post(
+  "deleteOne",
+  { document: true, query: false },
+  async function (this: IPost) {
+    if (this.comments?.length > 0) {
+      await Comment.deleteMany({ _id: { $in: this.comments } });
+    }
   }
-});
+);
 
 const Post = mongoose.model<IPost>("posts", postSchema);
 

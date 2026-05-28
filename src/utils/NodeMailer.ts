@@ -1,24 +1,23 @@
 import * as nodemailer from "nodemailer";
-import { getEnvironmentVariables } from "../environments/env";
+import { config } from "../config/env";
+
+const transport = nodemailer.createTransport({
+  host: config.mailHost,
+  port: config.mailPort,
+  auth: {
+    user: config.mailUsername,
+    pass: config.mailPassword,
+  },
+});
 
 export class NodeMailer {
-  private static initializeTransport() {
-    return nodemailer.createTransport({
-      host: getEnvironmentVariables().mail_host,
-      port: getEnvironmentVariables().mail_port,
-      auth: {
-        user: getEnvironmentVariables().mail_username,
-        pass: getEnvironmentVariables().mail_password,
-      },
-    });
-  }
   static sendEmail(data: {
-    to: [string];
+    to: string[];
     subject: string;
     html: string;
-  }): Promise<any> {
-    return NodeMailer.initializeTransport().sendMail({
-      from: getEnvironmentVariables().mail_from_email,
+  }): Promise<nodemailer.SentMessageInfo> {
+    return transport.sendMail({
+      from: `"${config.mailFromName}" <${config.mailFromEmail}>`,
       to: data.to,
       subject: data.subject,
       html: data.html,

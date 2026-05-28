@@ -1,0 +1,12 @@
+process.env.NODE_ENV = "test";
+process.env.PORT = "5001";
+process.env.DB_URL = "mongodb://127.0.0.1:27017/test-placeholder";
+process.env.JWT_SECRET = "test-jwt-secret-key-at-least-32-characters";
+process.env.MAIL_HOST = "smtp.test.com";
+process.env.MAIL_PORT = "587";
+process.env.MAIL_USERNAME = "test";
+process.env.MAIL_PASSWORD = "test";
+process.env.MAIL_FROM_EMAIL = "test@example.com";
+process.env.MAIL_FROM_NAME = "Test";
+process.env.ALLOWED_ORIGINS = "http://localhost:3000";
+process.env.LOG_LEVEL = "silent";

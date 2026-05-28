@@ -7,6 +7,6 @@ export interface IUser extends Document {
   email: string;
   password: string;
   username: string;
-  verification_token: number;
-  verification_token_time: any;
+  verification_token: number | null;
+  verification_token_time: Date | null;
 }

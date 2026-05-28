@@ -1,111 +1,52 @@
-import User from "../models/User";
-import { Utils } from "../utils/Utils";
-import * as Jwt from "jsonwebtoken";
-import { getEnvironmentVariables } from "../environments/env";
-import { NodeMailer } from "../utils/NodeMailer";
+import { NextFunction, Request, Response } from "express";
+import { UserService } from "../services/user.service";
 
 export class UserController {
-  static async signUp(req, res, next) {
-    const verificationToken = Utils.generateVerificationToken();
+  static async signUp(req: Request, res: Response, next: NextFunction) {
     try {
-      const hash = await Utils.encryptPassword(req.body.password);
-      const data = {
+      const user = await UserService.signUp({
         email: req.body.email,
-        password: hash,
+        password: req.body.password,
         username: req.body.username,
-        verification_token: verificationToken,
-        verification_token_time: Date.now() + new Utils().MAX_TOKEN_TIME,
-      };
-      let user = await new User(data).save();
-      res.send(user);
-      await NodeMailer.sendEmail({
-        to: [req.body.email],
-        subject: "Email Verification",
-        html: `<h1>${verificationToken}</h1>`,
       });
+      res.status(201).send(user);
     } catch (error) {
       next(error);
     }
   }
-  static async verifyUser(req, res, next) {
-    const { email, verification_token } = req.body;
+
+  static async verifyUser(req: Request, res: Response, next: NextFunction) {
     try {
-      const user = await User.findOneAndUpdate(
-        {
-          email: email,
-          verification_token: verification_token,
-          verification_token_time: { $gt: Date.now() },
-        },
-        {
-          verified: true,
-          updated_at: new Date(),
-          verification_token: null,
-          verification_token_time: null,
-        },
-        {
-          new: true,
-        }
+      const user = await UserService.verifyUser(
+        req.body.email,
+        req.body.verification_token
       );
-      if (user) {
-        res.send(user);
-      } else {
-        throw new Error(
-          "Verification Token Is Expired.Please Request For a new One"
-        );
-      }
+      res.send(user);
     } catch (error) {
       next(error);
     }
   }
-  static async login(req, res, next) {
-    const password = req.body.password;
-    const user = req.body.user;
+
+  static async login(req: Request, res: Response, next: NextFunction) {
     try {
-      await Utils.comparePassword({
-        plainPassword: password,
-        encryptedPassword: user.password,
-      });
-      const payload = {
-        user_id: req.body.user._id,
+      const result = await UserService.login({
         email: req.body.email,
-      };
-      const token = Jwt.sign(payload, getEnvironmentVariables().jwt_secret, {
-        expiresIn: 60 * 60,
+        password: req.body.password,
       });
-      return res.send({
-        token: token,
-        user: req.body.user,
-      });
+      res.send(result);
     } catch (error) {
       next(error);
     }
   }
-  static async updatePassword(req, res, next) {
-    const {
-      user_id: userId,
-      current_password: currentPassword,
-      confirm_password: confirmPassword,
-      new_password: newPassword,
-    } = req.body;
+
+  static async updatePassword(req: Request, res: Response, next: NextFunction) {
     try {
-      User.findOne({
-        _id: userId,
-      }).then(async (user: any) => {
-        await Utils.comparePassword({
-          plainPassword: currentPassword,
-          encryptedPassword: user.password,
-        });
-        const encryptedPassword = await Utils.encryptPassword(newPassword);
-        const newUser = await User.findOneAndUpdate(
-          {
-            _id: userId,
-          },
-          {
-            password: encryptedPassword,
-          }
-        );
-        res.send(newUser);
+      const user = await UserService.updatePassword({
+        userId: req.user?.user_id as string,
+        currentPassword: req.body.current_password,
+        newPassword: req.body.new_password,
       });
+      res.send(user);
     } catch (error) {
       next(error);
     }

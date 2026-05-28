@@ -1,11 +1,10 @@
-import { Document } from "mongoose";
+import { Document, Types } from "mongoose";
 
 export interface IPost extends Document {
-  comments: any[];
-  _id: string;
-  user_id: string;
+  comments: Types.ObjectId[];
+  user_id: Types.ObjectId;
   content: string;
   created_at: Date;
   updated_at: Date;
-  __v: number;
+  commentCount?: number;
 }

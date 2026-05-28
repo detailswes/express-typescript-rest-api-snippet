@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { PostValidators } from "../validators/PostValidators";
 import { GlobalMiddleware } from "../middlewares/GlobalMiddleware";
+import { PostMiddleware } from "../middlewares/PostMiddleware";
 import { PostController } from "../controllers/PostController";
 
 class PostRouter {
-  public router;
+  public router: Router;
+
   constructor() {
     this.router = Router();
     this.getRoutes();
@@ -17,14 +19,15 @@ class PostRouter {
     this.router.get(
       "/me",
       GlobalMiddleware.authenticate,
-      GlobalMiddleware.checkErrors,
       PostController.getPostByUser
     );
     this.router.get(
       "/:id",
       GlobalMiddleware.authenticate,
-      PostValidators.getPostById(),
+      PostValidators.postIdParam(),
       GlobalMiddleware.checkErrors,
+      PostMiddleware.loadPostById,
+      PostMiddleware.requirePostOwnership,
       PostController.getPostById
     );
   }
@@ -45,6 +48,8 @@ class PostRouter {
       GlobalMiddleware.authenticate,
       PostValidators.editPost(),
       GlobalMiddleware.checkErrors,
+      PostMiddleware.loadPostById,
+      PostMiddleware.requirePostOwnership,
       PostController.editPost
     );
   }
@@ -53,8 +58,10 @@ class PostRouter {
     this.router.delete(
       "/delete/:id",
       GlobalMiddleware.authenticate,
-      PostValidators.deletePost(),
+      PostValidators.postIdParam(),
       GlobalMiddleware.checkErrors,
+      PostMiddleware.loadPostById,
+      PostMiddleware.requirePostOwnership,
       PostController.deletePost
     );
   }

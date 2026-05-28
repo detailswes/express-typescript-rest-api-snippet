@@ -1,70 +1,63 @@
-import Post from "../models/Post";
+import { NextFunction, Request, Response } from "express";
+import { NotFoundError } from "../errors/AppError";
+import { PostService } from "../services/post.service";
 
 export class PostController {
-  static addPost(req, res, next) {
-    const { content } = req.body;
-
-    const post = new Post({
-      user_id: req.user.user_id,
-      content: content,
-      created_at: new Date(),
-      updated_at: new Date(),
-    });
-
-    post
-      .save()
-      .then((post: any) => {
-        res.send(post);
-      })
-      .catch((err: any) => {
-        next(err);
-      });
-  }
-  static async getPostByUser(req, res, next) {
+  static async addPost(req: Request, res: Response, next: NextFunction) {
     try {
-      const posts = await Post.find({
-        user_id: req.user.user_id,
-      }).populate("comments");
-      res.send(posts);
-    } catch (error) {
-      next(error);
-    }
-  }
-  static async getPostById(req, res, next) {
-    res.json({
-      post: req.post,
-      comment_counts: req.post.commentCount,
-    });
-  }
-  static async editPost(req, res, next) {
-    const { id } = req.params;
-    const content = req.body.content;
-    try {
-      const post = await Post.findByIdAndUpdate(
-        id,
-        {
-          content: content,
-          updated_at: new Date(),
-        },
-        {
-          new: true,
-        }
+      const post = await PostService.createPost(
+        req.user?.user_id as string,
+        req.body.content
       );
-
-      if (post) {
-        res.send(post);
-      } else {
-        throw new Error("Post does not exist!");
-      }
+      res.send(post);
     } catch (error) {
       next(error);
     }
   }
-  static async deletePost(req, res, next) {
-    const post = req.post;
+
+  static async getPostByUser(req: Request, res: Response, next: NextFunction) {
     try {
-      post.remove();
+      const result = await PostService.getPostsByUser(
+        req.user?.user_id as string,
+        parseInt(String(req.query.page || 1), 10),
+        parseInt(String(req.query.limit || 20), 10)
+      );
+      res.send(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static getPostById(req: Request, res: Response) {
+    res.json(PostService.getPostById(req.post!));
+  }
+
+  static async editPost(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.post) {
+        throw new NotFoundError("Post does not exist!");
+      }
+      const post = await PostService.editPost(
+        req.post,
+        req.user?.user_id as string,
+        req.body.content
+      );
       res.send(post);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async deletePost(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.post) {
+        throw new NotFoundError("Post does not exist!");
+      }
+      const result = await PostService.deletePost(
+        req.post,
+        req.user?.user_id as string
+      );
+      res.send(result);
     } catch (error) {
       next(error);
     }
