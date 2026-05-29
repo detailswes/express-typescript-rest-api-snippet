@@ -1,57 +1,74 @@
+# Code Snippet - Node.js REST API
 
-# Node REST API - Snippet
-
-This repository powers the backend of a simple content-sharing application where users can create accounts, verify their email using a one-time code, securely log in, publish posts, and interact through comments.
-
-The goal of this project wasn’t just to build another CRUD API. It was designed to reflect how modern backend applications are actually structured in professional environments. Alongside the core features, the project includes clean architecture patterns, a dedicated service layer, secure and consistent API responses, ownership and authorization checks, asynchronous email handling, Docker support, automated testing, and CI integration.
-
-It’s part of the Code Snippet Collection, focused on showcasing scalable, maintainable, and production-ready backend practices rather than tutorial-style code packed into a single file.
+[![Node](https://img.shields.io/badge/Node.js-18%2B-brightgreen)](https://nodejs.org)
+[![Tests](https://img.shields.io/badge/Tests-19%20passing-brightgreen)](#run)
 
 ---
 
-## What problem does this solve?
+## What is this?
 
-Most beginner Node tutorials dump everything in one file: routes talk to Mongoose directly, passwords leak in JSON responses, and “validators” secretly load data from the database. That works until it doesn’t.
+Imagine a simple platform where people can create an account, write posts, and leave comments - like a lightweight blog or community board. This project is the **backend engine** that makes all of that work behind the scenes.
 
-This snippet shows a cleaner split:
+When a user clicks "Sign Up," something has to save their details, send them a verification email, and make sure no one else can pretend to be them. When they write a post, something has to store it, let them edit it later, and make sure nobody else can delete it. This project handles all of that.
 
-- **Controllers** only handle HTTP (request in, response out).
-- **Services** hold the business rules (who can edit what, when to send email).
-- **Repositories** talk to MongoDB.
-- **Validators** only check input shape-not load users or posts.
-- **Middleware** loads resources once and checks ownership before the controller runs.
-
-If you’ve ever wondered “where should this logic live?” in an Express app, this repo is meant to answer that with working code, not just theory.
 
 ---
 
-## What you’ll get out of reading / running it
+## What does it actually do?
 
-- A full **auth flow**: sign-up → email OTP → verify → JWT login → protected routes.
-- **Posts and comments** with pagination, cascade deletes, and ownership checks (you can’t edit someone else’s post).
-- Patterns you’ll see in real teams: DTOs for API responses, typed errors (`404`, `403`, `422`), rate limiting, structured logs, health checks, Docker, CI, and **Swagger UI** to try the API in a browser.
-- **19 integration tests** that hit the real HTTP layer (Jest + supertest + in-memory MongoDB).
+Here is everything a user can do, in plain terms:
 
-It’s not a framework-it’s one app done in a way that scales if you add more features later.
+**Account**
+- Create an account with an email and password
+- Receive a one-time code by email to confirm the account is real
+- Log in securely and get a private access token
+- Change their password (only while logged in)
 
----
+**Posts**
+- Write a post and publish it
+- Browse their own posts with page-by-page navigation
+- Edit or delete a post - but only their own
+- View a single post along with how many comments it has
 
-## Tech stack
-
-| Layer | Choice |
-|-------|--------|
-| Runtime | Node.js 18+ |
-| Language | TypeScript (strict mode) |
-| HTTP | Express 4 |
-| Database | MongoDB via Mongoose 8 |
-| Auth | JWT + bcrypt |
-| Email | Nodemailer (queued after sign-up, not blocking the response) |
-| Docs | Swagger UI at `/api/docs` (dev only) |
-| Tests | Jest, supertest, mongodb-memory-server |
+**Comments**
+- Leave a comment on any post
+- Edit or delete their own comments - nobody else's
 
 ---
 
-## How a request flows
+## Why was this built this way?
+
+Most beginner tutorials put everything in one file. Routes talk directly to the database, passwords accidentally end up in API responses, and nobody checks whether the person asking to delete a post actually owns it.
+
+This project was built to show what a real backend looks like when it's done carefully:
+
+- **No password ever leaves the server** - API responses are filtered so sensitive fields are always stripped out
+- **You can only touch your own content** - the server checks ownership before every edit or delete
+- **Emails are sent in the background** - sign-up responds instantly; the verification email is handled separately so nothing slows the user down
+- **The code is split into clear layers** - each part of the code has one job, making it easy to read, test, and extend
+
+---
+
+## Built with
+
+| What | Why |
+|------|-----|
+| **Node.js 18** | Fast, widely used server runtime |
+| **TypeScript** | Catches bugs before the code even runs |
+| **Express** | Industry-standard web framework for Node |
+| **MongoDB + Mongoose 8** | Flexible document database, modern ODM |
+| **JWT + bcrypt** | Secure login tokens and password hashing |
+| **Pino** | Structured logging ready for production log systems |
+| **Nodemailer** | Sends verification emails via SMTP |
+| **Jest + Supertest** | 19 automated tests - no real database or email server needed |
+| **Docker** | Run the whole stack with one command |
+| **GitHub Actions** | Automatically builds and tests on every code change |
+
+---
+
+## How a request travels through the code
+
+Every incoming request passes through a predictable chain before anything is saved or returned.
 
 ```mermaid
 flowchart LR
@@ -64,16 +81,16 @@ flowchart LR
   Repository --> MongoDB
 ```
 
-Example: **edit a post**
+**Example - editing a post:**
 
-1. `PostRouter` - route + JWT auth + validate `id` and `content`.
-2. `PostMiddleware.loadPostById` - load post from DB, attach to `req.post`.
-3. `PostMiddleware.requirePostOwnership` - 403 if `post.user_id` ≠ logged-in user.
-4. `PostController.editPost` - pass `req.post` to the service (no second DB fetch).
-5. `PostService.editPost` - update and return.
-6. `PostRepository.updateDocument` - save on the document you already have.
+1. **Router** confirms the route, checks the JWT token, and validates the post ID format
+2. **Middleware** loads the post from the database and checks that the requesting user owns it (403 if not)
+3. **Controller** receives the request and passes it to the service - no second database trip needed
+4. **Service** applies the business rule and calls the repository
+5. **Repository** saves the change and returns the updated document
+6. **Controller** sends the result back to the client
 
-Validators never touch the database for posts/comments. That’s intentional.
+Validators only check that inputs are the right shape. They never load database records. That's intentional.
 
 ---
 
@@ -82,225 +99,230 @@ Validators never touch the database for posts/comments. That’s intentional.
 ```
 code-snippet-node/
 ├── src/
-│   ├── index.ts              # Starts server, graceful shutdown
-│   ├── app.ts                # Express app factory (used by tests too)
-│   ├── database.ts           # MongoDB connect / disconnect
+│   ├── index.ts                  # Entry point - starts the server, handles shutdown signals
+│   ├── app.ts                    # Express app factory (also used directly in tests)
+│   ├── database.ts               # MongoDB connect / disconnect
 │   ├── config/
-│   │   ├── env.ts            # Loads .env, fails fast if misconfigured
-│   │   ├── logger.ts         # Pino logger
-│   │   ├── swagger.ts        # OpenAPI spec
-│   │   └── swagger.setup.ts  # Mounts /api/docs in development
-│   ├── controllers/          # Thin HTTP handlers
-│   │   ├── UserController.ts
-│   │   ├── PostController.ts
-│   │   └── CommentController.ts
-│   ├── services/             # Business logic
-│   │   ├── user.service.ts
-│   │   ├── post.service.ts
-│   │   ├── comment.service.ts
-│   │   └── email.service.ts  # Async email queue after sign-up
-│   ├── repositories/         # Mongoose queries
-│   │   ├── user.repository.ts
-│   │   ├── post.repository.ts
-│   │   └── comment.repository.ts
-│   ├── middlewares/
-│   │   ├── GlobalMiddleware.ts   # JWT auth, validation errors
-│   │   ├── PostMiddleware.ts     # Load post + ownership
-│   │   └── CommentMiddleware.ts  # Load post / comment
-│   ├── validators/           # express-validator rules only
-│   ├── models/               # Mongoose schemas
-│   ├── dto/                  # Safe API response shapes (no password leaks)
-│   ├── errors/               # AppError, NotFound, Forbidden, etc.
-│   ├── routers/              # Route definitions
-│   ├── utils/                # Password hash, OTP, mailer
-│   ├── interfaces/
-│   └── types/
-│       └── express.d.ts      # req.user, req.post, req.comment
+│   │   ├── env.ts                # Loads .env, fails fast if anything required is missing
+│   │   ├── logger.ts             # Pino structured logger
+│   │   ├── swagger.ts            # OpenAPI specification
+│   │   └── swagger.setup.ts      # Mounts /api/docs in development only
+│   ├── controllers/              # Thin HTTP handlers - receive request, call service, send response
+│   ├── services/                 # Business logic - rules about what is and isn't allowed
+│   ├── repositories/             # All database reads and writes in one place
+│   ├── middlewares/              # JWT auth, resource loading, ownership checks
+│   ├── validators/               # Input shape checks only (no database calls)
+│   ├── models/                   # Mongoose schemas
+│   ├── dto/                      # What the API actually returns (passwords stripped here)
+│   ├── errors/                   # Typed error classes (404, 403, 401, 422)
+│   ├── routers/                  # Route definitions and middleware chains
+│   └── utils/                    # Password hashing, OTP generation, mailer transport
 ├── tests/
-│   ├── auth.test.ts
-│   ├── post.test.ts
-│   ├── comment.test.ts
-│   └── helpers/
-├── .github/workflows/ci.yml
-├── Dockerfile
-├── docker-compose.yml
-└── .env.example
+│   ├── auth.test.ts              # 8 tests covering sign-up, verify, login, password update
+│   ├── post.test.ts              # 6 tests including ownership enforcement
+│   ├── comment.test.ts           # 5 tests including ownership enforcement
+│   └── helpers/auth.ts           # Shared helper - creates a verified user in tests
+├── .github/workflows/ci.yml      # Runs build + all tests on every push
+├── Dockerfile                    # Multi-stage build (builder → lean production image)
+├── docker-compose.yml            # API + MongoDB with health check
+└── .env.example                  # Copy this to .env and fill in your values
 ```
 
 ---
 
-## Architecture layers (short version)
+## Architecture at a glance
 
-| Layer | Responsibility | Example |
-|-------|----------------|---------|
-| **Router** | URL, method, middleware chain | `PATCH /api/v1/post/edit/:id` |
-| **Validator** | Is the body/param valid? | Email format, password length |
-| **Middleware** | Auth, load `req.post`, check owner | `requirePostOwnership` |
-| **Controller** | Call service, send status code | `res.send(await PostService.editPost(...))` |
-| **Service** | Rules and orchestration | “Only owner can delete” |
-| **Repository** | DB reads/writes | `Post.findById`, `post.save()` |
-| **DTO** | What the client sees | User without `password` or OTP fields |
-
----
-
-## Features
-
-**User**
-
-- Sign up with email verification (OTP sent in the background)
-- Verify email, login (JWT), change password (authenticated)
-
-**Post**
-
-- Create, list (paginated), get by id, edit, delete - all scoped to the logged-in user
-
-**Comment**
-
-- Add comment on a post, edit/delete your own comments
-
-**Ops**
-
-- `GET /health` and `GET /health/ready`
-- Rate limits on sign-up, login, verify
-- Swagger UI in dev: http://localhost:5000/api/docs
+| Layer | Its one job | Example |
+|-------|-------------|---------|
+| **Router** | Define the URL and which middlewares run | `PATCH /api/v1/post/edit/:id` |
+| **Validator** | Is the input the right shape? | "Is this a valid email?" |
+| **Middleware** | Load a resource, check who owns it | `requirePostOwnership` → 403 if not yours |
+| **Controller** | Call the service, send the HTTP response | `res.send(await PostService.editPost(...))` |
+| **Service** | Apply the business rules | "Only the owner can delete this post" |
+| **Repository** | Talk to the database | `post.save()`, `Post.findById(id)` |
+| **DTO** | Control what the client can see | `UserResponseDto` - password field never included |
 
 ---
 
 ## Requirements
 
-- Node.js 18+
-- MongoDB (local or Docker)
-- SMTP settings for verification emails (or read OTP from the DB while testing)
+- **Node.js 18 or higher**
+- **MongoDB** - local installation, MongoDB Atlas (free tier), or use Docker (see below)
+- **SMTP credentials** - for sending verification emails. Gmail, SendGrid, Mailtrap, or any SMTP provider works. While developing locally, you can skip emails entirely and read the OTP code straight from MongoDB.
 
 ---
 
 ## Setup
 
+**1. Clone and install**
+
 ```bash
-git clone https://github.com/digvijaysingh100/code-snippet-node.git
+git clone https://github.com/detailswes/express-typescript-rest-api-snippet.git
 cd code-snippet-node
 npm install
+```
+
+**2. Configure environment**
+
+```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your values. The app won’t start without a valid `DB_URL`, `JWT_SECRET` (32+ chars), and mail settings.
+Then open `.env` and fill in your values:
 
-| Variable | What it’s for |
-|----------|----------------|
-| `DB_URL` | MongoDB connection string |
-| `JWT_SECRET` | Signing login tokens (min 32 characters) |
-| `MAIL_*` | SMTP for verification emails |
-| `ALLOWED_ORIGINS` | CORS (comma-separated) |
-| `LOG_LEVEL` | `info`, `debug`, or `silent` |
-| `SWAGGER_ENABLED` | Set `false` to turn off `/api/docs` |
+| Variable | What it does |
+|----------|--------------|
+| `DB_URL` | Your MongoDB connection string - e.g. `mongodb://localhost:27017/myapp` |
+| `JWT_SECRET` | A secret string for signing login tokens - must be at least 32 characters long |
+| `MAIL_HOST` | SMTP server address - e.g. `smtp.gmail.com` |
+| `MAIL_PORT` | SMTP port - usually `587` |
+| `MAIL_USERNAME` | Your SMTP login |
+| `MAIL_PASSWORD` | Your SMTP password or app password |
+| `MAIL_FROM_EMAIL` | The "From" email address users will see |
+| `ALLOWED_ORIGINS` | Which front-end URLs are allowed to call this API - e.g. `http://localhost:3000` |
+| `LOG_LEVEL` | How much detail to log - `info` is a good default, `silent` hides all logs |
+| `SWAGGER_ENABLED` | Set to `false` to hide the interactive API docs |
+
+The server will refuse to start if any required variable is missing or `JWT_SECRET` is shorter than 32 characters. That is deliberate - it prevents silent misconfiguration.
 
 ---
 
 ## Run
 
-**Development** (auto-reload):
+**Development** - auto-reloads on file changes:
 
 ```bash
 npm run dev
 ```
 
-**Production:**
+**Production** - compile first, then run:
 
 ```bash
 npm run build
 npm start
 ```
 
-**Tests** (no real Mongo or SMTP needed):
+**Tests** - no real MongoDB or email server needed, everything runs in memory:
 
 ```bash
 npm test
 ```
 
-**Docker** (API + Mongo with healthcheck):
+**Docker** - runs the API and a MongoDB instance together:
 
 ```bash
 docker compose up --build
 ```
 
-Use `DB_URL=mongodb://mongo:27017/code-snippet-node` in `.env` when running with Compose.
+When using Docker, set `DB_URL=mongodb://mongo:27017/code-snippet-node` in your `.env` file.
 
-Check the server: http://localhost:5000/health
-
----
-
-## Try the API in the browser (Swagger)
-
-With `npm run dev` running, open:
-
-**http://localhost:5000/api/docs**
-
-Typical flow:
-
-1. **POST /api/v1/user/sign-up**
-2. **POST /api/v1/user/verify** - OTP from email, or from MongoDB:  
-   `db.users.findOne({ email: "you@example.com" }, { verification_token: 1 })`
-3. **POST /api/v1/user/login** - copy `token`
-4. Click **Authorize** → `Bearer <token>`
-5. Try post and comment endpoints
-
-OpenAPI JSON: http://localhost:5000/api/docs.json
-
-Swagger is off in production and during tests. Set `SWAGGER_ENABLED=false` to disable in dev.
+Once running, check it is alive: [http://localhost:5000/health](http://localhost:5000/health)
 
 ---
 
-## API routes
+## Try the API interactively (Swagger UI)
 
-Base path: `/api/v1`
+With `npm run dev` running, open your browser and go to:
+
+**[http://localhost:5000/api/docs](http://localhost:5000/api/docs)**
+
+You will see a live, clickable interface for every endpoint. A typical flow to try it:
+
+1. **POST `/api/v1/user/sign-up`** - create an account
+2. **POST `/api/v1/user/verify`** - paste the OTP from your email (or grab it directly from MongoDB with `db.users.findOne({ email: "you@example.com" }, { verification_token: 1 })`)
+3. **POST `/api/v1/user/login`** - copy the `token` from the response
+4. Click **Authorize** at the top of the page and enter `Bearer <your token>`
+5. Try the post and comment endpoints - they are now unlocked
+
+Swagger is only available in development. It is automatically disabled in production and during tests.
+
+OpenAPI JSON spec: [http://localhost:5000/api/docs.json](http://localhost:5000/api/docs.json)
+
+---
+
+## API reference
+
+All routes start with `/api/v1`.
 
 ### User
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/user/sign-up` | No | Register |
-| POST | `/user/verify` | No | Confirm OTP |
-| POST | `/user/login` | No | Get JWT |
-| PATCH | `/user/update/password` | Yes | Change password |
+| Method | Path | Needs login? | What it does |
+|--------|------|:---:|--------------|
+| `POST` | `/user/sign-up` | No | Create a new account |
+| `POST` | `/user/verify` | No | Confirm email with the one-time code |
+| `POST` | `/user/login` | No | Log in and receive a JWT access token |
+| `PATCH` | `/user/update/password` | Yes | Change your password |
 
 ### Post
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/post/add` | Yes | Create post |
-| GET | `/post/me?page=1&limit=20` | Yes | Your posts (paginated) |
-| GET | `/post/:id` | Yes | Get one post |
-| PATCH | `/post/edit/:id` | Yes | Edit (owner only) |
-| DELETE | `/post/delete/:id` | Yes | Delete (owner only) |
+| Method | Path | Needs login? | What it does |
+|--------|------|:---:|--------------|
+| `POST` | `/post/add` | Yes | Publish a new post |
+| `GET` | `/post/me?page=1&limit=20` | Yes | List your posts - supports pagination |
+| `GET` | `/post/:id` | Yes | Fetch a single post with comment count |
+| `PATCH` | `/post/edit/:id` | Yes | Edit a post (only the owner can do this) |
+| `DELETE` | `/post/delete/:id` | Yes | Delete a post (only the owner can do this) |
 
 ### Comment
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/comment/add/:postId` | Yes | Add comment |
-| PATCH | `/comment/edit/:id` | Yes | Edit (owner only) |
-| DELETE | `/comment/delete/:id` | Yes | Delete (owner only) |
+| Method | Path | Needs login? | What it does |
+|--------|------|:---:|--------------|
+| `POST` | `/comment/add/:postId` | Yes | Add a comment to a post |
+| `PATCH` | `/comment/edit/:id` | Yes | Edit a comment (only the owner can do this) |
+| `DELETE` | `/comment/delete/:id` | Yes | Delete a comment (only the owner can do this) |
+
+### Health checks
+
+| Endpoint | What it checks |
+|----------|----------------|
+| `GET /health` | Is the server running? |
+| `GET /health/ready` | Is the server running **and** connected to the database? |
+
+Health check endpoints are used by Docker and Kubernetes to know whether the service is ready to receive traffic.
 
 ---
 
-## Security notes
+## Security overview
 
-Worth knowing if you’re reviewing or extending this:
+A few things worth knowing if you are reviewing or extending this project:
 
-- Passwords and OTPs never appear in API responses (`UserResponseDto` strips them).
-- Protected routes need `Authorization: Bearer <jwt>`.
-- Users can only edit/delete their own posts and comments (`403` otherwise).
-- Sign-up / login / verify are rate-limited in non-test environments.
-- OTP uses `crypto.randomInt`, not `Math.random()`.
-- Config is loaded from `.env`, not hardcoded TypeScript files.
-- `helmet`, CORS allowlist, env validation at startup.
-
----
-
-## CI
-
-On every push/PR, GitHub Actions runs `npm ci`, `npm run build`, and `npm test`.
+- **Passwords are never exposed** - the `UserResponseDto` strips the password and all internal fields before any response leaves the server
+- **Ownership is enforced server-side** - every edit and delete operation confirms the requesting user owns the resource; attempting to modify someone else's content returns `403 Forbidden`
+- **Verification codes are cryptographically random** - generated with Node's built-in `crypto.randomInt`, not the predictable `Math.random()`
+- **Rate limiting** is applied to sign-up, login, and verification endpoints to slow down brute-force attempts
+- **All protected routes require** `Authorization: Bearer <token>` in the request header
+- **Configuration never lives in source code** - everything is loaded from `.env` at startup, and the server refuses to start if anything required is missing
+- **Security headers** are set automatically via `helmet`
+- **CORS** is restricted to origins you explicitly allow
 
 ---
 
+## Running the tests
 
+Tests use an in-memory MongoDB instance - no real database or email server is needed.
+
+```bash
+npm test
+```
+
+19 integration tests cover the full HTTP layer:
+
+| Suite | Tests | What is covered |
+|-------|-------|-----------------|
+| `auth.test.ts` | 8 | Sign-up, duplicate email, verify, bad OTP, login, unverified login, password update, unauthenticated update |
+| `post.test.ts` | 6 | Create, list with pagination, edit (owner), edit (forbidden), delete (owner), delete (forbidden) |
+| `comment.test.ts` | 5 | Add comment, edit (owner), edit (forbidden), delete (forbidden), delete (owner) |
+
+---
+
+## CI/CD
+
+Every push and pull request triggers a GitHub Actions workflow that:
+
+1. Installs dependencies (`npm ci`)
+2. Compiles TypeScript and type-checks the entire project (`npm run build`)
+3. Runs all 19 tests (`npm test`)
+
+A merge is only safe when all three steps pass.
+
+---
